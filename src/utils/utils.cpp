@@ -33,6 +33,12 @@
 #include <ctime>
 #include <utils/utils.h>
 
+static bool HasSuffix(const std::string &value, const std::string &suffix)
+{
+    if (value.size() < suffix.size())
+        return false;
+    return value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
 
 std::map<std::string, graph_t *> g_cachedGraphs;
 
@@ -44,13 +50,20 @@ graph_t *GetCachedGraph(const std::string &graphfile, const std::string &format,
     {
         graph_t *graph;
 
-        if (format == "gr")
+        const bool is_bcsr = HasSuffix(graphfile, ".bcsr");
+        const bool is_bwcsr = HasSuffix(graphfile, ".bwcsr") || HasSuffix(graphfile, ".wbcsr");
+
+        if (is_bcsr || is_bwcsr)
+            graph = ReadGraphBCSR((char *) graphfile.c_str(), is_bwcsr);
+        else if (format == "gr")
             graph = ReadGraphGR((char *) graphfile.c_str());
         else if (format == "metis")
             graph = ReadGraph((char *) graphfile.c_str());
         else if (format == "market")
             graph = ReadGraphMarket((char *) graphfile.c_str());
         else if(format == "market_big")
+            graph = ReadGraphMarket_bigdata((char *) graphfile.c_str(), weight_num);
+        else if(format == "snap")
             graph = ReadGraphMarket_bigdata((char *) graphfile.c_str(), weight_num);
         else
         {

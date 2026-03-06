@@ -33,6 +33,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <cctype>
 #include <random>
 #include <cassert>
 #include <sstream>
@@ -161,8 +162,31 @@ namespace utils
                         exit(0);
                     }
 
-                    printf("\nLoading graph %s (%s)\n", FLAGS_graphfile.substr(FLAGS_graphfile.find_last_of('\\') + 1).c_str(), FLAGS_format.c_str());
-                    graph = GetCachedGraph(FLAGS_graphfile, FLAGS_format,FLAGS_weight_num);
+                    std::string graph_format = FLAGS_format;
+                    std::string graphfile_lower = FLAGS_graphfile;
+                    std::transform(graphfile_lower.begin(), graphfile_lower.end(), graphfile_lower.begin(),
+                                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                    if (graphfile_lower.size() >= 5 &&
+                        graphfile_lower.compare(graphfile_lower.size() - 5, 5, ".bcsr") == 0) {
+                        graph_format = "bcsr";
+                    } else if (graphfile_lower.size() >= 6 &&
+                               (graphfile_lower.compare(graphfile_lower.size() - 6, 6, ".bwcsr") == 0 ||
+                                graphfile_lower.compare(graphfile_lower.size() - 6, 6, ".wbcsr") == 0)) {
+                        graph_format = "bwcsr";
+                    }
+
+                    printf("\nLoading graph %s (%s)\n",
+                           FLAGS_graphfile.substr(FLAGS_graphfile.find_last_of('\\') + 1).c_str(),
+                           graph_format.c_str());
+                    graph = GetCachedGraph(FLAGS_graphfile, graph_format, FLAGS_weight_num);
+
+                    if (graph->xadj == nullptr || graph->adjncy == nullptr)
+                    {
+                        printf("Failed to load graph data for format '%s'. "
+                               "This repo only implements 'market_big' and 'snap'.\n",
+                               FLAGS_format.c_str());
+                        exit(1);
+                    }
 
                     if (graph->nvtxs == 0)
                     {

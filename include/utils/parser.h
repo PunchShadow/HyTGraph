@@ -146,6 +146,7 @@ graph_t *ReadGraph(char* filename);
 graph_t *ReadGraphGR(char* filename);
 graph_t *ReadGraphMarket(char* filename);
 graph_t *ReadGraphMarket_bigdata(char* filename,idx_t weight_num);
+graph_t *ReadGraphBCSR(char* filename, bool weighted);
 
 void FreeGraph(graph_t **r_graph);
 

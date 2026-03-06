@@ -41,7 +41,7 @@
 // App
 DEFINE_bool(interactive, false, "Run an interactive session");
 DEFINE_string(cmdfile, "", "A file with commands to execute");
-DEFINE_int32(max_iteration, 50, "Maximum iterated rounds");
+DEFINE_int32(max_iteration, 100000, "Maximum iterated rounds");
 DEFINE_bool(priority, false, "Enable priority scheduling (may not available for all algorithms)");
 DEFINE_int32(prio_delta, 0, "The soft priority delta");
 
@@ -60,7 +60,7 @@ DEFINE_string(lb_pull, "", "load-balancing policy for pull (none/coarse/fine/hyb
 
 // Input file/format
 DEFINE_string(graphfile, "", "A file with a graph in Dimacs 10 format");
-DEFINE_string(format, "gr", "graph format (gr/market/metis formats are supported)");
+DEFINE_string(format, "market_big", "graph format (market_big/snap/bcsr/bwcsr are supported in this repo)");
 DEFINE_bool(undirected, false, "treat input graph as undirected graph");
 DEFINE_string(json, "", "output running data as json format");
 DEFINE_bool(stats, false, "Print graph statistics");

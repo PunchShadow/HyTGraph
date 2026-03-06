@@ -28,6 +28,20 @@
 #include <cassert>
 #include <set>
 #include <vector>
+#include <gflags/gflags.h>
+
+static bool GetUndirectedFlag()
+{
+    std::string value;
+    if (!gflags::GetCommandLineOption("undirected", &value))
+        return false;
+
+    if (value == "1" || value == "true" || value == "True" || value == "TRUE" ||
+        value == "t" || value == "T" || value == "yes" || value == "Yes" || value == "YES")
+        return true;
+
+    return false;
+}
 
 
 struct Edge{
@@ -310,7 +324,7 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
 
     graph = CreateGraph();
 
-    int weighted = 1; // 0: no weight; 1: int weight; 2: float weight
+    int weighted = 1; // 0: no weight; 1: int weight; 2: generated weight
 
     if(weight_num == 1){
         weighted = 2;
@@ -323,31 +337,90 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
     
     xadj_pri.resize(1);
 
-    uint32_t src,dst;
+    uint32_t src = 0, dst = 0;
+    const bool undirected_flag = GetUndirectedFlag();
+    uint64_t max_node = 0;
+    uint64_t header_nodes = 0;
+    uint64_t header_edges = 0;
+    bool header_found = false;
+    bool header_undirected = false;
+
+    auto parse_header_counts = [&](const std::string &l) {
+        unsigned long long n = 0, e = 0;
+        if (std::sscanf(l.c_str(), "# Nodes: %llu Edges: %llu", &n, &e) == 2)
+        {
+            header_nodes = n;
+            header_edges = e;
+            header_found = true;
+        }
+        if (l.find("Undirected") != std::string::npos)
+        {
+            header_undirected = true;
+        }
+    };
+
     while(getline( infile, line )){
+        const size_t pos = line.find_first_not_of(" \t\r\n");
+        if (pos == std::string::npos)
+            continue;
+        if (line[pos] == '#')
+        {
+            parse_header_counts(line);
+            continue;
+        }
+
         ss.str("");
         ss.clear();
         ss << line;
-                
-        ss >> src;
-        ss >> dst;
 
-        if(graph->nvtxs < src)
-            graph->nvtxs = src;
-        if(graph->nvtxs < dst)
-            graph->nvtxs = dst;
+        if (!(ss >> src >> dst))
+            continue;
+
+        const uint64_t local_max = (src > dst) ? src : dst;
+        if (max_node < local_max)
+            max_node = local_max;
 
         graph->nedges++;
 
-        if(xadj_pri.size() <= src)
+        if (xadj_pri.size() <= src)
         {
-            xadj_pri.resize(src * 2);
+            size_t new_size = xadj_pri.size() > 0 ? xadj_pri.size() : 1;
+            while (new_size <= src)
+                new_size *= 2;
+            xadj_pri.resize(new_size, 0);
         }
         xadj_pri[src]++;
 
+        if (undirected_flag && src != dst)
+        {
+            if (xadj_pri.size() <= dst)
+            {
+                size_t new_size = xadj_pri.size() > 0 ? xadj_pri.size() : 1;
+                while (new_size <= dst)
+                    new_size *= 2;
+                xadj_pri.resize(new_size, 0);
+            }
+            xadj_pri[dst]++;
+            graph->nedges++;
+        }
     }
     infile.close();
-    graph->nvtxs++;
+
+    uint64_t nvtxs = max_node + 1;
+    if (header_found && header_nodes > nvtxs)
+        nvtxs = header_nodes;
+    graph->nvtxs = static_cast<idx_t>(nvtxs);
+
+    if (xadj_pri.size() < graph->nvtxs)
+    {
+        xadj_pri.resize(graph->nvtxs, 0);
+    }
+
+    if (header_undirected && !undirected_flag)
+    {
+        fprintf(stderr, "Note: SNAP header indicates undirected graph. "
+                        "Use --undirected to symmetrize edges.\n");
+    }
 
     //vwgt = graph->vwgt = (idx_t *) calloc((0 * graph->nvtxs), sizeof(idx_t));  // file doesn't store node weights though.
     graph->readvw = false;
@@ -361,8 +434,6 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
         adjncy = graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
         adjwgt = graph->adjwgt = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
     }
-
-    idx_t edge_idx = 0;
 
     uint64_t count = 0;
     for (idx_t src = 0; src < graph->nvtxs; src++)
@@ -379,32 +450,135 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
     for(idx_t i=0; i<graph->nvtxs; i++)
         outDegreeCounter[i] = 0;
     uint32_t weight;
+    bool warned_missing_weight = false;
     while(getline( infile, line )){
         
+        const size_t pos = line.find_first_not_of(" \t\r\n");
+        if (pos == std::string::npos)
+            continue;
+        if (line[pos] == '#')
+            continue;
+
         ss.str("");
         ss.clear();
         ss << line;
-                
-        ss >> src;
-        ss >> dst;
+
+        if (!(ss >> src >> dst))
+            continue;
 
  
         uint64_t location = xadj[src] + outDegreeCounter[src];                
         adjncy[location] = dst;
         outDegreeCounter[src]++; 
 
+        uint32_t edge_weight = 1;
+
         if(weighted == 2){
             adjwgt[location] = src % 64;
         }
         else if(weighted == 1){
-            ss >> weight;
-            adjwgt[location] = weight;
+            if (ss >> weight)
+            {
+                edge_weight = weight;
+                adjwgt[location] = edge_weight;
+            }
+            else
+            {
+                if (!warned_missing_weight)
+                {
+                    fprintf(stderr, "Warning: missing edge weights; defaulting to 1\n");
+                    warned_missing_weight = true;
+                }
+                adjwgt[location] = edge_weight;
+            }
         }
 
+        if (undirected_flag && src != dst)
+        {
+            uint64_t rev_location = xadj[dst] + outDegreeCounter[dst];
+            adjncy[rev_location] = src;
+            outDegreeCounter[dst]++;
+
+            if (weighted == 2)
+            {
+                adjwgt[rev_location] = dst % 64;
+            }
+            else if (weighted == 1)
+            {
+                adjwgt[rev_location] = edge_weight;
+            }
+        }
     }
     infile.close();
-    delete[] outDegreeCounter;
+    free(outDegreeCounter);
 
     return graph;
 }
 
+graph_t *ReadGraphBCSR(char *filename, bool weighted)
+{
+    std::ifstream infile(filename, std::ios::in | std::ios::binary);
+    if (!infile.is_open()) {
+        errexit("Failed to open binary CSR file: %s\n", filename);
+    }
+
+    uint32_t num_nodes = 0;
+    uint32_t num_edges = 0;
+    infile.read(reinterpret_cast<char*>(&num_nodes), sizeof(uint32_t));
+    infile.read(reinterpret_cast<char*>(&num_edges), sizeof(uint32_t));
+    if (!infile) {
+        errexit("Failed to read binary CSR header: %s\n", filename);
+    }
+
+    graph_t *graph = CreateGraph();
+    graph->nvtxs = static_cast<idx_t>(num_nodes);
+    graph->nedges = num_edges;
+    graph->readvw = false;
+    graph->readew = weighted;
+
+    graph->xadj = (uint64_t *) calloc((graph->nvtxs + 1), sizeof(uint64_t));
+    graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
+    if (weighted) {
+        graph->adjwgt = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
+    }
+
+    std::vector<uint32_t> row_offsets(num_nodes);
+    if (num_nodes > 0) {
+        infile.read(reinterpret_cast<char*>(row_offsets.data()), sizeof(uint32_t) * num_nodes);
+        if (!infile) {
+            errexit("Failed to read binary CSR row offsets: %s\n", filename);
+        }
+    }
+    for (uint32_t i = 0; i < num_nodes; i++) {
+        graph->xadj[i] = row_offsets[i];
+    }
+    graph->xadj[num_nodes] = num_edges;
+
+    if (weighted) {
+        struct BcsrEdgeWeighted {
+            uint32_t end;
+            uint32_t w8;
+        };
+        std::vector<BcsrEdgeWeighted> edges(num_edges);
+        if (num_edges > 0) {
+            infile.read(reinterpret_cast<char*>(edges.data()), sizeof(BcsrEdgeWeighted) * num_edges);
+            if (!infile) {
+                errexit("Failed to read binary CSR weighted edges: %s\n", filename);
+            }
+        }
+        for (uint32_t i = 0; i < num_edges; i++) {
+            graph->adjncy[i] = static_cast<idx_t>(edges[i].end);
+            graph->adjwgt[i] = static_cast<idx_t>(edges[i].w8);
+        }
+    } else {
+        if (num_edges > 0) {
+            infile.read(reinterpret_cast<char*>(graph->adjncy), sizeof(uint32_t) * num_edges);
+            if (!infile) {
+                errexit("Failed to read binary CSR edges: %s\n", filename);
+            }
+        }
+    }
+
+    infile.close();
+    return graph;
+}

@@ -36,6 +36,7 @@
 #include <random>
 #include <cassert>
 #include <cstdint>
+#include <chrono>
 #include <cuda_runtime.h>
 #include <groute/context.h>
 #include <groute/graphs/common.h>
@@ -258,7 +259,8 @@ namespace groute
                 }
 
                 void PrintHistogram(uint32_t *&p_in_degree,
-                                    uint32_t *&p_out_degree)
+                                    uint32_t *&p_out_degree,
+                                    float *h2d_time_ms = nullptr)
                 {
                     uint32_t *in_degree = new uint32_t[nnodes];
                     uint32_t *out_degree = new uint32_t[nnodes];
@@ -278,6 +280,7 @@ namespace groute
                     }
 
                     GROUTE_CUDA_CHECK(cudaMalloc(&p_in_degree, nnodes * sizeof(index_t)));
+                    auto h2d_start = std::chrono::high_resolution_clock::now();
                     GROUTE_CUDA_CHECK(
                         cudaMemcpy(p_in_degree, in_degree, nnodes * sizeof(index_t),
                                    cudaMemcpyHostToDevice));
@@ -286,6 +289,13 @@ namespace groute
                     GROUTE_CUDA_CHECK(
                         cudaMemcpy(p_out_degree, out_degree, nnodes * sizeof(index_t),
                                    cudaMemcpyHostToDevice));
+                    auto h2d_end = std::chrono::high_resolution_clock::now();
+
+                    if (h2d_time_ms != nullptr)
+                    {
+                        *h2d_time_ms = static_cast<float>(
+                            std::chrono::duration<double, std::milli>(h2d_end - h2d_start).count());
+                    }
                 }
             };
 

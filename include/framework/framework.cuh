@@ -252,12 +252,16 @@ namespace sepgraph {
                     stream[stream_idx].Sync();
                 }
 
-               m_groute_context->host_graph.PrintHistogram(graph_datum.m_in_degree.dev_ptr,graph_datum.m_out_degree.dev_ptr);
+               float initgraph_h2d_time_ms = 0.0f;
+               m_groute_context->host_graph.PrintHistogram(graph_datum.m_in_degree.dev_ptr,
+                                                          graph_datum.m_out_degree.dev_ptr,
+                                                          &initgraph_h2d_time_ms);
                m_running_info.time_init_graph = sw_init.ms();
 
                sw_init.stop();
 
-               LOG("InitGraph: %f ms (excluded)\n", sw_init.ms());	
+               LOG("InitGraph: %f ms (excluded)\n", sw_init.ms());
+               LOG("InitGraph H2D: %f ms (excluded)\n", initgraph_h2d_time_ms);
            }
 
            void SaveToJson() {
@@ -304,7 +308,7 @@ namespace sepgraph {
 
                     writer.write("fused_kernel", m_engine_options.IsFused() ? "YES" : "NO");
                     writer.write("max_iteration_reached",
-                     m_running_info.current_round == 1000 ? "YES" : "NO");
+                     m_running_info.current_round == FLAGS_max_iteration ? "YES" : "NO");
                 //writer.write("date", get_now());
                 writer.write("device", m_dev_props.name);
                 writer.write("dataset", FLAGS_graphfile);
@@ -356,7 +360,7 @@ namespace sepgraph {
                         }
 
                         LOG("Fused kernel: %s\n", m_engine_options.IsFused() ? "YES" : "NO");
-                        LOG("Max iteration reached: %s\n", m_running_info.current_round == 1000 ? "YES" : "NO");
+                        LOG("Max iteration reached: %s\n", m_running_info.current_round == FLAGS_max_iteration ? "YES" : "NO");
 
 
                         LOG("-------------Misc-------------------\n");
@@ -372,7 +376,8 @@ namespace sepgraph {
                 GraphDatum &graph_datum = *m_graph_datum;
                 graph_datum.priority_detal = priority_detal;
 
-                AlgoVariant next_policy[FLAGS_SEGMENT];
+                // CombineTask may temporarily use up to SEGMENT + 2 logical slots.
+                std::vector<AlgoVariant> next_policy(FLAGS_SEGMENT + 2, m_policy_decision_maker.GetInitPolicy());
                 for(index_t i = 0; i < FLAGS_SEGMENT; i++){
                     next_policy[i] = m_policy_decision_maker.GetInitPolicy();
                 }
@@ -382,8 +387,8 @@ namespace sepgraph {
 
                 while (!convergence) {
                   PreComputationBW();	    
-                  CombineTask(next_policy);
-                  ExecutePolicyBW(next_policy); 	    
+                  CombineTask(next_policy.data());
+                  ExecutePolicyBW(next_policy.data()); 	    
                   for(index_t i = 0; i < FLAGS_SEGMENT; i++){
                     next_policy[i] = m_policy_decision_maker.GetNextPolicy(i,graph_datum.Compaction_num);
                   }
@@ -397,7 +402,7 @@ namespace sepgraph {
                   if(convergence_check == FLAGS_SEGMENT){
                         convergence = true;
                   }
-                  if (m_running_info.current_round == 1000 ) {//FLAGS_max_iteration
+                  if (m_running_info.current_round == FLAGS_max_iteration ) {
                         convergence = true;
                         LOG("Max iterations reached\n");
                   }
@@ -581,8 +586,26 @@ namespace sepgraph {
                     }
                     else{
                         //printf("Compaction\n");
+                        if(!Compaction()){
+                            // Fallback: compaction buffer would overflow, run this task via zero-copy.
+                            m_running_info.zerocopy_num++;
+                            m_csr_dev_graph_allocator->SwitchZC();
+                            m_graph_datum->m_csr_edge_weight_datum.SwitchZC();
+                            zcflag = true;
+                            seg_idx_new = FLAGS_SEGMENT + 1;
+                            RunSyncPushDDB(app_inst,
+                               0,
+                               graph_datum.nnodes,
+                               0,
+                               seg_idx_new,
+                               zcflag,
+                               csr_graph,
+                               graph_datum,
+                               m_engine_options,
+                               stream[stream_id]);
+                            continue;
+                        }
                         m_running_info.compaction_num++;
-                        Compaction();
                         m_csr_dev_graph_allocator->AllocateDevMirror_Edge_Compaction(graph_datum.subgraphedges,stream[stream_id]);
                         m_csr_dev_graph_allocator->SwitchCom();
                         if(m_graph_datum->m_weighted == true){
@@ -779,7 +802,7 @@ namespace sepgraph {
                         task = 0;
                         zc = true;
                         //printf("zero\n");
-                        while(algo_variant[seg_idx + 1] == AlgoVariant::Zero_Copy && seg_idx < FLAGS_SEGMENT - 1){
+                        while(seg_idx < FLAGS_SEGMENT - 1 && algo_variant[seg_idx + 1] == AlgoVariant::Zero_Copy){
                             seg_idx++;
                         }
                     }
@@ -787,7 +810,7 @@ namespace sepgraph {
                         task = 2;
                         compaction = true;
                         //printf("Compaction\n");
-                        while(algo_variant[seg_idx + 1] == AlgoVariant::Exp_Compaction && seg_idx < FLAGS_SEGMENT - 1){
+                        while(seg_idx < FLAGS_SEGMENT - 1 && algo_variant[seg_idx + 1] == AlgoVariant::Exp_Compaction){
                             seg_idx++;
                         }
                     }
@@ -994,7 +1017,7 @@ namespace sepgraph {
                 }
                 //printf("falseegde:%d total_edge:%d\n",falseegde,graph_datum.subgraphedges);
             }
-          void Compaction() {
+          bool Compaction() {
                 int dev_id = 0;
                 const groute::Stream &stream_seg = m_groute_context->CreateStream(dev_id);
                 GraphDatum &graph_datum = *m_graph_datum;
@@ -1022,12 +1045,20 @@ namespace sepgraph {
                 GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph_host.subgraph_rowstart, csr_graph.subgraph_rowstart, graph_datum.subgraphnodes*sizeof(uint32_t), cudaMemcpyDeviceToHost));
 
                 uint32_t numActiveEdges = 0;
-                uint32_t endid = csr_graph_host.subgraph_activenode[graph_datum.subgraphnodes-1];
-                uint32_t outDegree = csr_graph_host.end_edge(endid) - csr_graph_host.begin_edge(endid);
-                if(graph_datum.subgraphnodes > 0)
-                    numActiveEdges = csr_graph_host.subgraph_rowstart[graph_datum.subgraphnodes-1] + outDegree; 
+                if(graph_datum.subgraphnodes > 0){
+                    uint32_t endid = csr_graph_host.subgraph_activenode[graph_datum.subgraphnodes - 1];
+                    uint32_t outDegree = csr_graph_host.end_edge(endid) - csr_graph_host.begin_edge(endid);
+                    numActiveEdges = csr_graph_host.subgraph_rowstart[graph_datum.subgraphnodes - 1] + outDegree;
+                }
                 
                 graph_datum.subgraphedges = numActiveEdges;
+                uint64_t compaction_capacity = csr_graph_host.nedges / 4;
+                if(static_cast<uint64_t>(numActiveEdges) > compaction_capacity){
+                    LOG("Compaction skipped: subgraph edges %u exceed capacity %lu\n",
+                        numActiveEdges,
+                        compaction_capacity);
+                    return false;
+                }
                 uint32_t last = numActiveEdges;
 
                 GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph.subgraph_rowstart + graph_datum.subgraphnodes, &last, sizeof(uint32_t), cudaMemcpyHostToDevice));
@@ -1089,6 +1120,7 @@ namespace sepgraph {
                //                                   csr_graph_host.row_start, 
                //                                   csr_graph_host.subgraph_edgedst,
                //                                   csr_graph_host.edge_dst);
+               return true;
           }
 
       };

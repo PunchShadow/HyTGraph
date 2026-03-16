@@ -30,6 +30,8 @@
 #ifndef __GROUTE_GRAPHS_CSR_GRAPH_H
 #define __GROUTE_GRAPHS_CSR_GRAPH_H
 
+#include <nvToolsExt.h>
+
 #include <vector>
 #include <gflags/gflags.h>
 #include <algorithm>
@@ -1082,18 +1084,22 @@ namespace groute
 
                 void AllocateDevMirror_edge_explicit_step(uint64_t seg_nedges, uint64_t seg_sedge, const groute::Stream &stream ,index_t i)
                 {
+                      nvtxRangePush("Explicit_Edge_Transfer");
 		              GROUTE_CUDA_CHECK(
                             cudaMemcpyAsync(m_dev_mirror.edge_dst_exp[i], m_origin_graph.edge_dst + seg_sedge,
                                    seg_nedges * sizeof(index_t),
                                    cudaMemcpyHostToDevice,stream.cuda_stream));  	    	      
+                      nvtxRangePop();
                 }
 
                 void AllocateDevMirror_edge_compaction(uint64_t seg_nedges, const groute::Stream &stream)
                 {
+                      nvtxRangePush("Compaction_Edge_Transfer");
                       GROUTE_CUDA_CHECK(
                             cudaMemcpyAsync(m_dev_mirror.edge_dst_com, m_origin_graph.subgraph_edgedst,
                                    seg_nedges * sizeof(index_t),
                                    cudaMemcpyHostToDevice,stream.cuda_stream));                   
+                      nvtxRangePop();
                 }
 
                 void DeallocateDevMirror()
@@ -1415,14 +1421,18 @@ if(m_on_pinned_memory){
                 
 		        void AllocateDevMirror_edge_explicit_step(const graphs::GraphBase &host_graph,uint64_t seg_nedges, uint64_t seg_sedge,const groute::Stream &stream ,index_t i)
                 {
+                    nvtxRangePush("Weight_Explicit_Transfer");
     		        GROUTE_CUDA_CHECK(cudaMemcpyAsync(m_dev_datum.data_ptr_exp[i], m_edge_data + seg_sedge, seg_nedges * sizeof(T),
                                                          cudaMemcpyHostToDevice,stream.cuda_stream));
+                    nvtxRangePop();
                 }
 
                 void AllocateDevMirror_edge_compaction(const host::CSRGraph &host_graph, uint32_t seg_nedges,const groute::Stream &stream)
                 {
+                    nvtxRangePush("Weight_Compaction_Transfer");
                     GROUTE_CUDA_CHECK(cudaMemcpyAsync(m_dev_datum.data_ptr_com, host_graph.subgraph_edgeweight, seg_nedges * sizeof(T),
                                                          cudaMemcpyHostToDevice,stream.cuda_stream));
+                    nvtxRangePop();
                 }
 
                 T *GetHostDataPtr()

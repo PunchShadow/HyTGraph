@@ -143,10 +143,12 @@ bool HybridSSSP()
 
 
     groute::graphs::host::CSRGraph csr_graph = engine.CSRGraph();
+    auto *p_weight_datum =
+            const_cast<sepgraph::graphs::GraphDatum<distance_t, distance_t, distance_t> &>(engine.GetGraphDatum()).m_csr_edge_weight_datum.GetHostDataPtr();
     double weight_sum = 0;
     for (uint64_t edge = 0; edge < csr_graph.nedges; edge++)
     {
-        weight_sum += csr_graph.edge_weights[edge];
+        weight_sum += p_weight_datum[edge];
     }
 
     /**
@@ -180,9 +182,6 @@ bool HybridSSSP()
     engine.PrintInfo();
 
     const auto &distances = engine.GatherValue();
-    const auto *p_weight_datum =
-            const_cast<sepgraph::graphs::GraphDatum<distance_t, distance_t, distance_t> &>(engine.GetGraphDatum()).m_csr_edge_weight_datum.GetHostDataPtr();
-
     bool success = true;
     if (FLAGS_check)
     {

@@ -386,6 +386,7 @@ namespace sepgraph {
                 LoadOptions();
 
                 while (!convergence) {
+                  RangeMarker round_marker(true, "BFS_Round");
                   PreComputationBW();	    
                   CombineTask(next_policy.data());
                   ExecutePolicyBW(next_policy.data()); 	    
@@ -538,6 +539,7 @@ namespace sepgraph {
 
                 index_t stream_id;
                 for(index_t seg_idx = 0; seg_idx < priority_seg ; seg_idx++){
+                    RangeMarker seg_marker(true, "BFS_Segment");
                     if(FLAGS_priority_a == 1){
                         seg_idx_new = seg_res_rank[seg_idx].first;
                     }

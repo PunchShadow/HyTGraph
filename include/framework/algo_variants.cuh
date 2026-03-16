@@ -389,6 +389,7 @@ namespace sepgraph
                             EngineOptions &engine_options,
                             const groute::Stream &stream)
         {
+            RangeMarker kernel_marker(true, "Kernel_SyncPushDDB");
             dim3 grid_dims, block_dims;
             KernelSizing(grid_dims, block_dims, seg_enode-seg_snode);
             uint32_t work_size = graph_datum.m_wl_array_in_seg[seg_idx].GetCount(stream);

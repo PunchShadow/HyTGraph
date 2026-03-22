@@ -30,7 +30,8 @@ namespace sepgraph {
                 typename TWeight>
         struct GraphDatum {
             // Graph metadata
-            uint32_t nnodes, nedges;
+            uint32_t nnodes;
+            uint64_t nedges;
 	               
             index_t segment = FLAGS_SEGMENT;
             // Worklist

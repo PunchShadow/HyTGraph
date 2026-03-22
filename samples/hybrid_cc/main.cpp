@@ -28,8 +28,8 @@ namespace CC
         { return "CC"; }
 
         static bool Single()
-        {       
-            HybridCC();
+        {
+            return HybridCC();
         }
 
         static void Cleanup()

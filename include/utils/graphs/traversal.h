@@ -76,11 +76,10 @@ using std::max;
 inline void KernelSizing(dim3 &grid_dims, dim3 &block_dims, uint32_t work_size)
 {
     dim3 bd(FLAGS_block_size, 1, 1);
-    //index_t numblocks_kernel = ((work_size * 32 + FLAGS_block_size) / FLAGS_block_size);
-    //dim3 gd(FLAGS_block_size, ( numblocks_kernel+FLAGS_block_size)/FLAGS_block_size);
-    dim3 gd(round_up(work_size, bd.x), 1, 1);
+    uint32_t num_blocks = round_up(work_size, bd.x);
+    if (num_blocks == 0) num_blocks = 1;  // Avoid cudaErrorInvalidConfiguration
+    dim3 gd(num_blocks, 1, 1);
 
-    if (grid_dims.x > 480)grid_dims.x = 480;
     grid_dims = gd;
     block_dims = bd;
 }
@@ -212,11 +211,11 @@ namespace utils
                     }
                 }
 
-                if (host_graph.edge_weights == nullptr && FLAGS_gen_weights)
+                if (host_graph.edge_weights == nullptr &&
+                    (FLAGS_gen_weights || FLAGS_weight_num > 0))
                 {
 
-                    if (FLAGS_verbose)
-                        printf("\nNo edge data in the input graph, generating edge weights from the range [%d, %d]\n", 1, FLAGS_gen_weight_range);
+                    printf("\nNo edge data in the input graph, generating edge weights from the range [%d, %d]\n", 1, FLAGS_gen_weight_range);
 
                     // Generate edge data
                     std::default_random_engine generator;
@@ -224,7 +223,7 @@ namespace utils
 
                     host_graph.AllocWeights();
 
-                    for (int i = 0; i < host_graph.nedges; i++)
+                    for (uint64_t i = 0; i < host_graph.nedges; i++)
                     {
                         host_graph.edge_weights[i] = distribution(generator);
                     }

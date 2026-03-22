@@ -264,8 +264,8 @@ namespace groute
                                     uint32_t *&p_out_degree,
                                     float *h2d_time_ms = nullptr)
                 {
-                    uint32_t *in_degree = new uint32_t[nnodes];
-                    uint32_t *out_degree = new uint32_t[nnodes];
+                    uint32_t *in_degree = new uint32_t[nnodes]();
+                    uint32_t *out_degree = new uint32_t[nnodes]();
 
                     for (index_t node = 0; node < nnodes; node++)
                     {

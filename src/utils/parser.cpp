@@ -559,16 +559,21 @@ graph_t *ReadGraphBCSR(char *filename, bool weighted)
             uint32_t end;
             uint32_t w8;
         };
-        std::vector<BcsrEdgeWeighted> edges(num_edges);
-        if (num_edges > 0) {
-            infile.read(reinterpret_cast<char*>(edges.data()), sizeof(BcsrEdgeWeighted) * num_edges);
+        // Stream in chunks to avoid allocating a huge temporary buffer
+        const uint32_t CHUNK = 1u << 20; // 1M edges per chunk (~8 MB)
+        uint32_t offset = 0;
+        while (offset < num_edges) {
+            uint32_t batch = std::min(CHUNK, num_edges - offset);
+            std::vector<BcsrEdgeWeighted> buf(batch);
+            infile.read(reinterpret_cast<char*>(buf.data()), sizeof(BcsrEdgeWeighted) * batch);
             if (!infile) {
                 errexit("Failed to read binary CSR weighted edges: %s\n", filename);
             }
-        }
-        for (uint32_t i = 0; i < num_edges; i++) {
-            graph->adjncy[i] = static_cast<idx_t>(edges[i].end);
-            graph->adjwgt[i] = static_cast<idx_t>(edges[i].w8);
+            for (uint32_t i = 0; i < batch; i++) {
+                graph->adjncy[offset + i] = static_cast<idx_t>(buf[i].end);
+                graph->adjwgt[offset + i] = static_cast<idx_t>(buf[i].w8);
+            }
+            offset += batch;
         }
     } else {
         if (num_edges > 0) {

@@ -77,7 +77,7 @@ namespace hybrid_pr
 
                 int out_degree = this->m_csr_graph.end_edge(node) -
                                      this->m_csr_graph.begin_edge(node);
-                buffer = ALPHA * buffer / out_degree;
+                buffer = (out_degree > 0) ? ALPHA * buffer / out_degree : 0.0f;
 
             }
 

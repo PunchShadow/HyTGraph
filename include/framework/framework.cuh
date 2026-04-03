@@ -142,7 +142,7 @@ namespace sepgraph {
 	  index_t node_id = 0;
 	  uint64_t out_degree;
 	  std::vector<index_t> nnodes_num;
-      uint32_t maxnode_num;
+      index_t maxnode_num;
 	  seg_snode = node_id;
 	  m_groute_context->seg_snode[0] = seg_snode;
 	  for(index_t seg_idx = 0; node_id < csr_graph.nnodes ; seg_idx++){
@@ -531,8 +531,8 @@ namespace sepgraph {
                 index_t priority_seg = m_groute_context->segment_ct;
                 
                 index_t seg_exc = 0;
-                for(index_t stream_idx = 0; stream_idx < FLAGS_n_stream ; stream_idx++){
-                     m_graph_datum->seg_exc_list[stream_idx] = -1;
+                for(index_t stream_idx = 0; stream_idx < (index_t)FLAGS_n_stream ; stream_idx++){
+                     m_graph_datum->seg_exc_list[stream_idx] = (index_t)-1;
                 }
                 sw_priority.stop();
                 m_running_info.time_overhead_sample += sw_priority.ms();
@@ -616,7 +616,7 @@ namespace sepgraph {
                if(seg_exc >= FLAGS_n_stream && FLAGS_residence == 1){
                 
                for(index_t seg_idx = 0; seg_idx < FLAGS_n_stream; seg_idx++){
-                    if(m_graph_datum->seg_exc_list[seg_idx] != -1){
+                    if(m_graph_datum->seg_exc_list[seg_idx] != (index_t)-1){
                             index_t seg_exc = m_graph_datum->seg_exc_list[seg_idx];
                             stream_id = seg_exc % FLAGS_n_stream;
                             uint32_t seg_idx_exp = m_groute_context->segment_id_ct[seg_idx];
@@ -637,7 +637,7 @@ namespace sepgraph {
                 }
 
                 for(index_t seg_idx = 0; seg_idx < FLAGS_n_stream ; seg_idx++){
-                    if(m_graph_datum->seg_exc_list[seg_idx] != -1){
+                    if(m_graph_datum->seg_exc_list[seg_idx] != (index_t)-1){
                     index_t seg_exc = m_graph_datum->seg_exc_list[seg_idx];
                     seg_idx_new = seg_exc;
                     uint32_t seg_idx_exp = m_groute_context->segment_id_ct[seg_idx_new];
@@ -667,7 +667,7 @@ namespace sepgraph {
                 }
                 for(index_t stream_idx = 0; stream_idx < FLAGS_n_stream ; stream_idx++){
                     stream[stream_idx].Sync();
-                    m_graph_datum->seg_exc_list[stream_idx] = -1;
+                    m_graph_datum->seg_exc_list[stream_idx] = (index_t)-1;
                 }
             }
           
@@ -906,24 +906,24 @@ namespace sepgraph {
             }
 
             void dynamic(uint32_t tId,
-                            uint32_t numThreads,    
+                            uint32_t numThreads,
                             uint32_t numActiveNodes,
-                            uint32_t *activeNodes,
-                            uint32_t *activeNodesPointer,
-                            uint64_t *nodePointer, 
-                            uint32_t *activeEdgeList,
-                            uint32_t *edgeList)
+                            index_t *activeNodes,
+                            index_t *activeNodesPointer,
+                            uint64_t *nodePointer,
+                            index_t *activeEdgeList,
+                            index_t *edgeList)
             {
 
                 uint32_t chunkSize = numActiveNodes / numThreads + 1;
                 uint32_t left, right;
-                
+
                 left = tId * chunkSize;
-                right = min(left+chunkSize, numActiveNodes);    
-                uint32_t thisNode;
-                uint32_t thisDegree;
-                uint32_t fromHere;
-                uint32_t fromThere;
+                right = min(left+chunkSize, numActiveNodes);
+                index_t thisNode;
+                index_t thisDegree;
+                index_t fromHere;
+                uint64_t fromThere;
 
                 for(uint32_t i=left; i<right; i++)
                 {
@@ -931,36 +931,36 @@ namespace sepgraph {
                     thisDegree = activeNodesPointer[i + 1] - activeNodesPointer[i];
                     fromHere = activeNodesPointer[i];
                     fromThere = nodePointer[thisNode];
-                    for(uint32_t j=0; j<thisDegree; j++)
+                    for(index_t j=0; j<thisDegree; j++)
                     {
                         activeEdgeList[fromHere+j] = edgeList[fromThere+j];
                     }
                 }
-                
+
             }
 
             void dynamic_weight(uint32_t tId,
-                            uint32_t numThreads,    
+                            uint32_t numThreads,
                             uint32_t numActiveNodes,
-                            uint32_t *activeNodes,
-                            uint32_t *activeNodesPointer,
-                            uint64_t *nodePointer, 
-                            uint32_t *activeEdgeList,
-                            uint32_t *edgeList,
-                            uint32_t *activeEdgeListWeight,
-                            uint32_t *edgeListWeight)
+                            index_t *activeNodes,
+                            index_t *activeNodesPointer,
+                            uint64_t *nodePointer,
+                            index_t *activeEdgeList,
+                            index_t *edgeList,
+                            index_t *activeEdgeListWeight,
+                            index_t *edgeListWeight)
             {
 
                 uint32_t chunkSize = numActiveNodes / numThreads + 1;
                 uint32_t left, right;
 
                 left = tId * chunkSize;
-                right = min(left+chunkSize, numActiveNodes);    
-                
-                uint32_t thisNode;
-                uint32_t thisDegree;
-                uint32_t fromHere;
-                uint32_t fromThere;
+                right = min(left+chunkSize, numActiveNodes);
+
+                index_t thisNode;
+                index_t thisDegree;
+                index_t fromHere;
+                uint64_t fromThere;
 
                 for(uint32_t i=left; i<right; i++)
                 {
@@ -968,22 +968,22 @@ namespace sepgraph {
                     thisDegree = activeNodesPointer[i + 1] - activeNodesPointer[i];
                     fromHere = activeNodesPointer[i];
                     fromThere = nodePointer[thisNode];
-                    for(uint32_t j=0; j<thisDegree; j++)
+                    for(index_t j=0; j<thisDegree; j++)
                     {
                         activeEdgeList[fromHere+j] = edgeList[fromThere+j];
                         activeEdgeListWeight[fromHere+j] = edgeListWeight[fromThere+j];
                     }
                 }
-                
+
             }
             void check(){
                 GraphDatum &graph_datum = *m_graph_datum;
                 auto &csr_graph_host = m_csr_dev_graph_allocator->HostObject();
-                uint32_t thisNode;
-                uint32_t thisDegree;
-                uint32_t fromHere;
-                uint32_t fromThere;
-                uint32_t realDegree;
+                index_t thisNode;
+                index_t thisDegree;
+                index_t fromHere;
+                uint64_t fromThere;
+                uint64_t realDegree;
                 uint32_t falseegde = 0;
                 for(uint32_t i = 0;i < graph_datum.subgraphnodes; i++){
 
@@ -992,7 +992,7 @@ namespace sepgraph {
                     fromHere = csr_graph_host.subgraph_rowstart[i];
                     fromThere = csr_graph_host.row_start[thisNode];
                     realDegree = csr_graph_host.row_start[thisNode + 1] - fromThere;
-                    for(uint32_t j = 0; j < thisDegree; j++){
+                    for(index_t j = 0; j < thisDegree; j++){
                         if(csr_graph_host.subgraph_edgedst[fromHere + j] != csr_graph_host.edge_dst[fromThere + j] || csr_graph_host.subgraph_edgeweight[fromHere+j] != csr_graph_host.edge_weights[fromThere+j]){
                             //printf("Compaction edge:%d,real edge:%d\n",csr_graph_host.subgraph_edgedst[fromHere + j],csr_graph_host.edge_dst[fromThere + j]);
                             falseegde++;
@@ -1017,7 +1017,7 @@ namespace sepgraph {
 
                 kernel::makeQueue<<<graph_datum.nnodes/512+1, 512>>>(csr_graph.subgraph_activenode, graph_datum.activeNodesLabeling.dev_ptr, graph_datum.prefixLabeling.dev_ptr, graph_datum.nnodes);
 
-                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph_host.subgraph_activenode, csr_graph.subgraph_activenode, graph_datum.subgraphnodes*sizeof(uint32_t), cudaMemcpyDeviceToHost));
+                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph_host.subgraph_activenode, csr_graph.subgraph_activenode, graph_datum.subgraphnodes*sizeof(index_t), cudaMemcpyDeviceToHost));
 
                 thrust::device_ptr<uint32_t> ptr_degrees(graph_datum.activeNodesDegree.dev_ptr);
                 thrust::device_ptr<uint32_t> ptr_degrees_prefixsum(graph_datum.prefixSumDegrees.dev_ptr);
@@ -1026,21 +1026,21 @@ namespace sepgraph {
 
                 kernel::makeActiveNodesPointer<<<graph_datum.nnodes/512+1, 512>>>(csr_graph.subgraph_rowstart, graph_datum.activeNodesLabeling.dev_ptr, graph_datum.prefixLabeling.dev_ptr, graph_datum.prefixSumDegrees.dev_ptr, graph_datum.nnodes);
                 
-                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph_host.subgraph_rowstart, csr_graph.subgraph_rowstart, graph_datum.subgraphnodes*sizeof(uint32_t), cudaMemcpyDeviceToHost));
+                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph_host.subgraph_rowstart, csr_graph.subgraph_rowstart, graph_datum.subgraphnodes*sizeof(index_t), cudaMemcpyDeviceToHost));
 
-                uint32_t numActiveEdges = 0;
+                index_t numActiveEdges = 0;
                 if(graph_datum.subgraphnodes > 0){
-                    uint32_t endid = csr_graph_host.subgraph_activenode[graph_datum.subgraphnodes - 1];
-                    uint32_t outDegree = csr_graph_host.end_edge(endid) - csr_graph_host.begin_edge(endid);
+                    index_t endid = csr_graph_host.subgraph_activenode[graph_datum.subgraphnodes - 1];
+                    index_t outDegree = csr_graph_host.end_edge(endid) - csr_graph_host.begin_edge(endid);
                     numActiveEdges = csr_graph_host.subgraph_rowstart[graph_datum.subgraphnodes - 1] + outDegree;
                 }
-                
-                graph_datum.subgraphedges = numActiveEdges;
-                uint32_t last = numActiveEdges;
 
-                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph.subgraph_rowstart + graph_datum.subgraphnodes, &last, sizeof(uint32_t), cudaMemcpyHostToDevice));
-    
-                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph_host.subgraph_rowstart, csr_graph.subgraph_rowstart, (graph_datum.subgraphnodes + 1)*sizeof(uint32_t), cudaMemcpyDeviceToHost));
+                graph_datum.subgraphedges = numActiveEdges;
+                index_t last = numActiveEdges;
+
+                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph.subgraph_rowstart + graph_datum.subgraphnodes, &last, sizeof(index_t), cudaMemcpyHostToDevice));
+
+                GROUTE_CUDA_CHECK(cudaMemcpy(csr_graph_host.subgraph_rowstart, csr_graph.subgraph_rowstart, (graph_datum.subgraphnodes + 1)*sizeof(index_t), cudaMemcpyDeviceToHost));
 
                 uint32_t numThreads = 32;
 

@@ -45,7 +45,7 @@ SSSPHostNaive(const groute::graphs::host::CSRGraph &graph, const distance_t *edg
         work.pop();
 
         distance_t distance = distances[node];
-        for (index_t edge = graph.begin_edge(node), end_edge = graph.end_edge(node); edge < end_edge; ++edge) {
+        for (uint64_t edge = graph.begin_edge(node), end_edge = graph.end_edge(node); edge < end_edge; ++edge) {
             index_t dest = graph.edge_dest(edge);
             distance_t edge_weight = edge_weights[edge];
             if (distances[dest] > distance + edge_weight) // if can be relaxed

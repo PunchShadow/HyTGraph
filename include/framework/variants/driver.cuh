@@ -41,7 +41,7 @@ namespace sepgraph {
 
             for (uint32_t i = 0 + tid; i < work_size; i += nthreads) {
                 index_t node = work_source.get_work(i);
-                printf("%u %u %u\n", node, node_value_datum[i], node_buffer_datum[i]);
+                printf("%lu %lu %lu\n", (unsigned long)node, (unsigned long)node_value_datum[i], (unsigned long)node_buffer_datum[i]);
             }
         }
 
@@ -58,8 +58,8 @@ namespace sepgraph {
                 for (int i = 0; i < work_size; i++) {
                     index_t node = work_source.get_work(i);
 
-                    printf("node: %u in-degree: %u out-degree: %u\n",
-                           node,
+                    printf("node: %lu in-degree: %u out-degree: %u\n",
+                           (unsigned long)node,
                            p_in_degree[node],
                            p_out_degree[node]);
                 }
@@ -233,7 +233,7 @@ namespace sepgraph {
             }
         }
 
-        __global__ void makeQueue(uint32_t *activeNodes, uint32_t *activeNodesLabeling,
+        __global__ void makeQueue(index_t *activeNodes, uint32_t *activeNodesLabeling,
                                     uint32_t *prefixLabeling, uint32_t numNodes)
         {
             uint32_t id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -242,8 +242,8 @@ namespace sepgraph {
             }
         }
 
-        __global__ void makeActiveNodesPointer(uint32_t *activeNodesPointer, uint32_t *activeNodesLabeling, 
-                                                    uint32_t *prefixLabeling, uint32_t *prefixSumDegrees, 
+        __global__ void makeActiveNodesPointer(index_t *activeNodesPointer, uint32_t *activeNodesLabeling,
+                                                    uint32_t *prefixLabeling, uint32_t *prefixSumDegrees,
                                                     uint32_t numNodes)
         {
             uint32_t id = blockDim.x * blockIdx.x + threadIdx.x;

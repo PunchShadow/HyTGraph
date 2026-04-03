@@ -337,7 +337,7 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
     
     xadj_pri.resize(1);
 
-    uint32_t src = 0, dst = 0;
+    uint64_t src = 0, dst = 0;
     const bool undirected_flag = GetUndirectedFlag();
     uint64_t max_node = 0;
     uint64_t header_nodes = 0;
@@ -427,12 +427,12 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
 
     xadj = graph->xadj = (uint64_t *) calloc((graph->nvtxs + 1), sizeof(uint64_t));
     if(weighted == 0){
-        adjncy = graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
+        adjncy = graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(idx_t));
     }
     else{
         graph->readew = true;
-        adjncy = graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
-        adjwgt = graph->adjwgt = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
+        adjncy = graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(idx_t));
+        adjwgt = graph->adjwgt = (idx_t *) calloc((graph->nedges), sizeof(idx_t));
     }
 
     uint64_t count = 0;
@@ -449,7 +449,7 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
     idx_t *outDegreeCounter  = (idx_t *) calloc((graph->nvtxs + 1), sizeof(idx_t));
     for(idx_t i=0; i<graph->nvtxs; i++)
         outDegreeCounter[i] = 0;
-    uint32_t weight;
+    uint64_t weight;
     bool warned_missing_weight = false;
     while(getline( infile, line )){
         
@@ -471,7 +471,7 @@ graph_t *ReadGraphMarket_bigdata(char *filename,idx_t weight_num)
         adjncy[location] = dst;
         outDegreeCounter[src]++; 
 
-        uint32_t edge_weight = 1;
+        uint64_t edge_weight = 1;
 
         if(weighted == 2){
             adjwgt[location] = src % 64;
@@ -537,11 +537,12 @@ graph_t *ReadGraphBCSR(char *filename, bool weighted)
     graph->readew = weighted;
 
     graph->xadj = (uint64_t *) calloc((graph->nvtxs + 1), sizeof(uint64_t));
-    graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
+    graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(idx_t));
     if (weighted) {
-        graph->adjwgt = (idx_t *) calloc((graph->nedges), sizeof(uint32_t));
+        graph->adjwgt = (idx_t *) calloc((graph->nedges), sizeof(idx_t));
     }
 
+    // Binary file stores 32-bit row offsets; widen to 64-bit
     std::vector<uint32_t> row_offsets(num_nodes);
     if (num_nodes > 0) {
         infile.read(reinterpret_cast<char*>(row_offsets.data()), sizeof(uint32_t) * num_nodes);
@@ -576,14 +577,101 @@ graph_t *ReadGraphBCSR(char *filename, bool weighted)
             offset += batch;
         }
     } else {
+        // Binary file stores 32-bit edge destinations; widen to 64-bit
         if (num_edges > 0) {
-            infile.read(reinterpret_cast<char*>(graph->adjncy), sizeof(uint32_t) * num_edges);
-            if (!infile) {
-                errexit("Failed to read binary CSR edges: %s\n", filename);
+            const uint32_t CHUNK = 1u << 20;
+            uint32_t offset = 0;
+            while (offset < num_edges) {
+                uint32_t batch = std::min(CHUNK, num_edges - offset);
+                std::vector<uint32_t> buf(batch);
+                infile.read(reinterpret_cast<char*>(buf.data()), sizeof(uint32_t) * batch);
+                if (!infile) {
+                    errexit("Failed to read binary CSR edges: %s\n", filename);
+                }
+                for (uint32_t i = 0; i < batch; i++) {
+                    graph->adjncy[offset + i] = static_cast<idx_t>(buf[i]);
+                }
+                offset += batch;
             }
         }
     }
 
     infile.close();
+    return graph;
+}
+
+graph_t *ReadGraphBCSR64(char *filename, bool weighted)
+{
+    fprintf(stdout, "Reading bcsr64 format: %s (weighted=%d)\n", filename, weighted);
+
+    std::ifstream infile(filename, std::ios::in | std::ios::binary);
+    if (!infile.is_open()) {
+        errexit("Failed to open bcsr64 file: %s\n", filename);
+    }
+
+    uint64_t num_nodes = 0;
+    uint64_t num_edges = 0;
+    infile.read(reinterpret_cast<char*>(&num_nodes), sizeof(uint64_t));
+    infile.read(reinterpret_cast<char*>(&num_edges), sizeof(uint64_t));
+    if (!infile) {
+        errexit("Failed to read bcsr64 header: %s\n", filename);
+    }
+
+    graph_t *graph = CreateGraph();
+    graph->nvtxs = static_cast<idx_t>(num_nodes);
+    graph->nedges = num_edges;
+    graph->readvw = false;
+    graph->readew = weighted;
+
+    graph->xadj = (uint64_t *) calloc((graph->nvtxs + 1), sizeof(uint64_t));
+    graph->adjncy = (idx_t *) calloc((graph->nedges), sizeof(idx_t));
+    if (weighted) {
+        graph->adjwgt = (idx_t *) calloc((graph->nedges), sizeof(idx_t));
+    }
+
+    // bcsr64: offsets are uint64_t, read directly into xadj
+    if (num_nodes > 0) {
+        infile.read(reinterpret_cast<char*>(graph->xadj), sizeof(uint64_t) * num_nodes);
+        if (!infile) {
+            errexit("Failed to read bcsr64 row offsets: %s\n", filename);
+        }
+    }
+    graph->xadj[num_nodes] = num_edges;
+
+    if (weighted) {
+        // bwcsr64: interleaved {uint64_t end, uint64_t w8} per edge
+        struct BcsrEdgeWeighted64 {
+            uint64_t end;
+            uint64_t w8;
+        };
+        const uint64_t CHUNK = 1ULL << 20;
+        uint64_t offset = 0;
+        while (offset < num_edges) {
+            uint64_t batch = std::min(CHUNK, num_edges - offset);
+            std::vector<BcsrEdgeWeighted64> buf(batch);
+            infile.read(reinterpret_cast<char*>(buf.data()), sizeof(BcsrEdgeWeighted64) * batch);
+            if (!infile) {
+                errexit("Failed to read bcsr64 weighted edges: %s\n", filename);
+            }
+            for (uint64_t i = 0; i < batch; i++) {
+                graph->adjncy[offset + i] = static_cast<idx_t>(buf[i].end);
+                graph->adjwgt[offset + i] = static_cast<idx_t>(buf[i].w8);
+            }
+            offset += batch;
+        }
+    } else {
+        // bcsr64: edge destinations are uint64_t, read directly into adjncy
+        if (num_edges > 0) {
+            infile.read(reinterpret_cast<char*>(graph->adjncy), sizeof(uint64_t) * num_edges);
+            if (!infile) {
+                errexit("Failed to read bcsr64 edges: %s\n", filename);
+            }
+        }
+    }
+
+    infile.close();
+
+    fprintf(stdout, "Done reading bcsr64: %lu nodes, %lu edges\n",
+            (unsigned long)num_nodes, (unsigned long)num_edges);
     return graph;
 }

@@ -73,10 +73,10 @@ DECLARE_bool(stats);
 using std::min;
 using std::max;
 
-inline void KernelSizing(dim3 &grid_dims, dim3 &block_dims, uint32_t work_size)
+inline void KernelSizing(dim3 &grid_dims, dim3 &block_dims, index_t work_size)
 {
     dim3 bd(FLAGS_block_size, 1, 1);
-    uint32_t num_blocks = round_up(work_size, bd.x);
+    uint32_t num_blocks = (uint32_t)round_up(work_size, (index_t)bd.x);
     if (num_blocks == 0) num_blocks = 1;  // Avoid cudaErrorInvalidConfiguration
     dim3 gd(num_blocks, 1, 1);
 
@@ -98,7 +98,7 @@ namespace utils
             groute::graphs::host::CSRGraph host_graph;
 
             int ngpus;
-            int nvtxs;
+            index_t nvtxs;
             uint64_t nedges;
             index_t segment = FLAGS_SEGMENT;
             index_t segment_ct;
@@ -203,8 +203,8 @@ namespace utils
                     if (FLAGS_stats)
                     {
                         printf(
-                                "The graph has %d vertices, and %ld edges (avg. degree: %f, max. degree: %d)\n",
-                                host_graph.nnodes, host_graph.nedges, (float) host_graph.nedges / host_graph.nnodes, host_graph.max_degree());
+                                "The graph has %lu vertices, and %lu edges (avg. degree: %f, max. degree: %lu)\n",
+                                (unsigned long)host_graph.nnodes, (unsigned long)host_graph.nedges, (float) host_graph.nedges / host_graph.nnodes, (unsigned long)host_graph.max_degree());
 
                         CleanupGraphs();
                         exit(0);
@@ -236,7 +236,7 @@ namespace utils
 
                 if (FLAGS_verbose)
                 {
-                    printf("The graph has %d vertices, and %ld edges (average degree: %f,max. degree: %d)\n", nvtxs, nedges, (float) nedges / nvtxs, host_graph.max_degree());
+                    printf("The graph has %lu vertices, and %lu edges (average degree: %f,max. degree: %lu)\n", (unsigned long)nvtxs, (unsigned long)nedges, (float) nedges / nvtxs, (unsigned long)host_graph.max_degree());
                 }
             }
         };

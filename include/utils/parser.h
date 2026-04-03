@@ -28,7 +28,7 @@
 #define SCIDX  "ld"
 #define PRIDX  "I32d"
 
-typedef uint32_t idx_t;
+typedef uint64_t idx_t;
 typedef float real_t;
 typedef uint64_t size_t;
 
@@ -147,6 +147,7 @@ graph_t *ReadGraphGR(char* filename);
 graph_t *ReadGraphMarket(char* filename);
 graph_t *ReadGraphMarket_bigdata(char* filename,idx_t weight_num);
 graph_t *ReadGraphBCSR(char* filename, bool weighted);
+graph_t *ReadGraphBCSR64(char* filename, bool weighted);
 
 void FreeGraph(graph_t **r_graph);
 

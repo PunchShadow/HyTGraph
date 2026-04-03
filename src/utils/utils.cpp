@@ -50,10 +50,14 @@ graph_t *GetCachedGraph(const std::string &graphfile, const std::string &format,
     {
         graph_t *graph;
 
-        const bool is_bcsr = HasSuffix(graphfile, ".bcsr");
-        const bool is_bwcsr = HasSuffix(graphfile, ".bwcsr") || HasSuffix(graphfile, ".wbcsr");
+        const bool is_bcsr64 = HasSuffix(graphfile, ".bcsr64");
+        const bool is_bwcsr64 = HasSuffix(graphfile, ".bwcsr64");
+        const bool is_bcsr = HasSuffix(graphfile, ".bcsr") && !is_bcsr64;
+        const bool is_bwcsr = (HasSuffix(graphfile, ".bwcsr") || HasSuffix(graphfile, ".wbcsr")) && !is_bwcsr64;
 
-        if (is_bcsr || is_bwcsr)
+        if (is_bcsr64 || is_bwcsr64)
+            graph = ReadGraphBCSR64((char *) graphfile.c_str(), is_bwcsr64);
+        else if (is_bcsr || is_bwcsr)
             graph = ReadGraphBCSR((char *) graphfile.c_str(), is_bwcsr);
         else if (format == "gr")
             graph = ReadGraphGR((char *) graphfile.c_str());

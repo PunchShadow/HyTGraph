@@ -45,7 +45,7 @@ std::vector<level_t> BFSHost(const groute::graphs::host::CSRGraph& graph, index_
         work.pop();
 
         level_t level = levels[node];
-        for (index_t edge = graph.begin_edge(node), end_edge = graph.end_edge(node); edge < end_edge; ++edge)
+        for (uint64_t edge = graph.begin_edge(node), end_edge = graph.end_edge(node); edge < end_edge; ++edge)
         {
             index_t dest = graph.edge_dest(edge);
             if (levels[dest] == IDENTITY_ELEMENT) // if not visited

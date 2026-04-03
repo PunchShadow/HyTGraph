@@ -160,7 +160,7 @@ bool HybridSSSP()
     int init_prio = 32 * (weight_sum / csr_graph.nedges) /
                     (1.0 * csr_graph.nedges / csr_graph.nnodes);
 
-    printf("Priority delta: %u\n", init_prio);
+    printf("Priority delta: %d\n", init_prio);
 
     if (FLAGS_sparse)
     {

@@ -30,8 +30,8 @@ namespace sepgraph
 
             groute::graphs::dev::CSRGraph m_csr_graph;
             groute::graphs::dev::CSCGraph m_csc_graph;
-            uint32_t m_nnodes;
-            uint32_t m_nedges;
+            index_t m_nnodes;
+            uint64_t m_nedges;
             common::Model m_model;
             common::MsgPassing m_msg_passing;
             common::Scheduling m_scheduling;

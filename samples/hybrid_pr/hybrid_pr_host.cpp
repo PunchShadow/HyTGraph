@@ -49,7 +49,7 @@ std::vector<rank_t> PageRankHost(const groute::graphs::host::CSRGraph &graph)
 
     for (index_t node = 0; node < graph.nnodes; ++node)
     {
-        index_t
+        uint64_t
                 begin_edge = graph.begin_edge(node),
                 end_edge = graph.end_edge(node),
                 out_degree = end_edge - begin_edge;
@@ -58,7 +58,7 @@ std::vector<rank_t> PageRankHost(const groute::graphs::host::CSRGraph &graph)
 
         rank_t update = ((1.0 - ALPHA) * ALPHA) / out_degree;
 
-        for (index_t edge = begin_edge; edge < end_edge; ++edge)
+        for (uint64_t edge = begin_edge; edge < end_edge; ++edge)
         {
             index_t dest = graph.edge_dest(edge);
             residual[dest] += update;
@@ -86,7 +86,7 @@ std::vector<rank_t> PageRankHost(const groute::graphs::host::CSRGraph &graph)
             ranks[node] += res;
             residual[node] = 0;
 
-            index_t
+            uint64_t
                     begin_edge = graph.begin_edge(node),
                     end_edge = graph.end_edge(node),
                     out_degree = end_edge - begin_edge;
@@ -95,7 +95,7 @@ std::vector<rank_t> PageRankHost(const groute::graphs::host::CSRGraph &graph)
 
             rank_t update = res * ALPHA / out_degree;
 
-            for (index_t edge = begin_edge; edge < end_edge; ++edge)
+            for (uint64_t edge = begin_edge; edge < end_edge; ++edge)
             {
                 index_t dest = graph.edge_dest(edge);
                 rank_t prev = residual[dest];

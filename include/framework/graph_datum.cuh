@@ -30,7 +30,7 @@ namespace sepgraph {
                 typename TWeight>
         struct GraphDatum {
             // Graph metadata
-            uint32_t nnodes;
+            index_t nnodes;
             uint64_t nedges;
 	               
             index_t segment = FLAGS_SEGMENT;
@@ -78,7 +78,7 @@ namespace sepgraph {
             utils::SharedArray<uint32_t> activeNodesDegree;
             utils::SharedArray<uint32_t> prefixLabeling;
             utils::SharedArray<uint32_t> prefixSumDegrees;
-            uint32_t subgraphnodes,subgraphedges;
+            index_t subgraphnodes,subgraphedges;
             uint32_t Compaction_num;
             // Running data
             utils::SharedValue<uint32_t> m_active_nodes;
@@ -118,7 +118,7 @@ namespace sepgraph {
 		             m_weighted = false;
 		        }   
 
-                uint32_t capacity = nnodes * FLAGS_wl_alloc_factor;
+                index_t capacity = (index_t)(nnodes * FLAGS_wl_alloc_factor);
 
 		        for(index_t i = 0; i < segment; i++){
 		              m_wl_array_in_seg[i] = std::move(groute::Queue<index_t>(nnodes_num[i]));

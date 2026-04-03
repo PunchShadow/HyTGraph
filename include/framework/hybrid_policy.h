@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <gflags/gflags.h>
 #include <framework/common.h>
+#include <groute/graphs/common.h>
 
 DECLARE_int32(SEGMENT);
 DECLARE_int32(hybrid);
@@ -41,8 +42,8 @@ namespace sepgraph
             AlgoVariant last_variant;
 
             // Graph related statistics
-            uint32_t nnodes;
-	        uint32_t nnodes_seg[512];
+            index_t nnodes;
+	        index_t nnodes_seg[512];
             uint64_t nedges;
             float power_law_alpha;
             float power_law_threshold;
@@ -56,11 +57,11 @@ namespace sepgraph
             uint32_t current_round;
 
             // Workload statistics
-            uint32_t total_workload; // edges to check
-            uint32_t input_workload;
-	        uint32_t input_workload_seg[512];
-	        uint32_t total_workload_seg[512];
-            uint32_t output_workload;
+            uint64_t total_workload; // edges to check
+            uint64_t input_workload;
+	        uint64_t input_workload_seg[512];
+	        uint64_t total_workload_seg[512];
+            uint64_t output_workload;
 
             std::map<AlgoVariant, float> policy_time;
             std::map<AlgoVariant, float> policy_predicted_time;
